@@ -1,0 +1,35 @@
+name: apply-src-patch
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        required: true
+      message:
+        default: "Remove Lovable dependencies"
+      dry_run:
+        default: "true"
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        env:
+          SCRIPT: ${{ github.event.inputs.script }}
+        run: |
+          curl -fsSL -X POST "$SCRIPT" -o /tmp/p.py || curl -fsSL "$SCRIPT" -o /tmp/p.py
+          python3 /tmp/p.py "$GITHUB_WORKSPACE"
+          git add -A
+          git diff --cached --stat | tail -30
+          git diff --cached -U1 | grep '^[-+]' | grep -v '^[-+][-+]' | cut -c1-220 | head -80
+      - name: Commit
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          MSG: ${{ github.event.inputs.message }}
+        run: |
+          git config user.name "calory89"; git config user.email "rrppspain@gmail.com"
+          git diff --cached --quiet && exit 0
+          git commit -q -m "$MSG"
+          for i in 1 2 3; do git push && exit 0; git pull --rebase -q; done; exit 1
